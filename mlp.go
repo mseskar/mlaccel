@@ -6,9 +6,11 @@ import (
 	"image/png"
 	"math"
 	"os"
+	//"github.com/gonum/stat"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distuv"
+	//"gonum.org/v1/gonum/stat"
 )
 
 // Network is a neural network with 3 layers
@@ -29,10 +31,10 @@ func CreateNetwork(input, hidden, output int, rate float64) (net Network) {
 		outputs:      output,
 		learningRate: rate,
 	};
-	net.hiddenWeights = mat.NewDense(net.hiddens, net.inputs, randomArray(net.inputs*net.hiddens, float64(net.inputs)));
+	net.hiddenWeights = mat.NewDense(net.hiddens, net.inputs+1, randomArray((net.inputs+1)*(net.hiddens), float64(net.inputs+1)));
 	//fmt.Println("Initial Hidden Weights: ", net.hiddenWeights);
 	//fmt.Println("\n\n");
-	net.outputWeights = mat.NewDense(net.outputs, net.hiddens, randomArray(net.hiddens*net.outputs, float64(net.hiddens)));
+	net.outputWeights = mat.NewDense(net.outputs, net.hiddens, randomArray((net.hiddens)*(net.outputs), float64(net.hiddens)));
 	//fmt.Println("Initial Output Weights: ", net.outputWeights);
 	//fmt.Println("\n\n");
 	return;
@@ -42,56 +44,67 @@ func CreateNetwork(input, hidden, output int, rate float64) (net Network) {
 func (net *Network) Train(inputData []float64, targetData []float64) {
 	// feedforward
 	inputs := mat.NewDense(len(inputData), 1, inputData);
-	//fmt.Println("Hidden Weights: ", net.hiddenWeights);
-	//fmt.Println("\ninputs ", inputs);
-	hiddenInputs := dot(net.hiddenWeights, inputs);
-	//hiddenInputs = apply(negate, hiddenInputs);
-	//fmt.Println("\nhiddenInputs: ", hiddenInputs);
+	//fmt.Println("\nHidden Weights: ", net.hiddenWeights, "\n");
+	//mt.Println("inputs ", inputs);
+	biasedInputs := addBiasNodeTo(inputs, 1);
+	//matrixPrint(biasedInputs)
+	//fmt.Println(biasedInputs);
+	hiddenInputs := scale(0.1, dot(net.hiddenWeights, biasedInputs));
+	//matrixPrint(hiddenInputs);
+	//fmt.Println("this worked");
+	//fmt.Println("hiddenInputs: ", hiddenInputs);
 	hiddenOutputs := apply(sigmoid, hiddenInputs);
 	//fmt.Println("hiddenOutputs: ", hiddenOutputs);
-	finalInputs := dot(net.outputWeights, hiddenOutputs);
-	//finalInputs = apply(negate, finalInputs);
+	//biasedFinal := addBiasNodeTo(hiddenOutputs, 1);
+	//fmt.Println("biasedFinal: ", biasedFinal)
+	finalInputs := scale(1, dot(net.outputWeights, hiddenOutputs));
 	//fmt.Println("finalInputs: ", finalInputs);
 
 	finalOutputs := apply(sigmoid, finalInputs);
-
+	//fmt.Println("finalOutputs: ", finalOutputs);
 	// find errors
 	targets := mat.NewDense(len(targetData), 1, targetData);
+	//fmt.Println("Targets: ", targets);
 	outputErrors := subtract(targets, finalOutputs);
+	//outputErrors := subtract(finalOutputs, targets);
+	//fmt.Println("outputErrors: ", outputErrors);
 	hiddenErrors := dot(net.outputWeights.T(), outputErrors);
 
 	// backpropagate
-	//finalSigmoid := sigmoidPrime(finalOutputs);
+	finalSigmoid := sigmoidPrime(finalOutputs);
+	//fmt.Println("finalSigmoid: ", net.outputWeights);
+	//matrixPrint(net.outputWeights);
+	//fmt.Println("mult: ", dot(multiply(outputErrors, finalSigmoid), hiddenOutputs.T()).(*mat.Dense));
+	//fmt.Println("mult: ", addBiasNodeTo(hiddenOutputs,1).T());
 	net.outputWeights = add(net.outputWeights,
 		scale(net.learningRate,
-			dot(multiply(outputErrors, sigmoidPrime(finalOutputs)),
+			dot(multiply(outputErrors, finalSigmoid),
 				hiddenOutputs.T()))).(*mat.Dense);
 
-	//hiddenSigmoid := sigmoidPrime(hiddenOutputs);
+	hiddenSigmoid := sigmoidPrime(hiddenOutputs);
+
+	//fmt.Println("hiddenErrors: ", dot(multiply(hiddenErrors, hiddenSigmoid),inputs.T()));
+	//fmt.Println(net.hiddenWeights);
 	net.hiddenWeights = add(net.hiddenWeights,
 		scale(net.learningRate,
-			dot(multiply(hiddenErrors, sigmoidPrime(hiddenOutputs)),
-				inputs.T()))).(*mat.Dense);
+			dot(multiply(hiddenErrors, hiddenSigmoid),
+				biasedInputs.T()))).(*mat.Dense);
 }
 
 // Predict uses the neural network to predict the value given input data
 func (net Network) Predict(inputData []float64) mat.Matrix {
 	// feedforward
 	inputs := mat.NewDense(len(inputData), 1, inputData);
-	//fmt.Println("\ninputs: ", inputs, "\nweights: ")
-	/*for x:=0; x<784; x++{
-		fmt.Print(net.hiddenWeights.At(0, x), ", ");
-	}*/
-	//fmt.Println();
-	hiddenInputs := dot(net.hiddenWeights, inputs);
-	hiddenInputs = apply(negate, hiddenInputs);
-	fmt.Println("hiddenInputs: ", hiddenInputs);
+	biasedInputs := addBiasNodeTo(inputs, 1);
+	//fmt.Println("Inputs: ", inputs);
+	hiddenInputs := scale(0.1, dot(net.hiddenWeights, biasedInputs));
+	//fmt.Println("hiddenInputs: ", hiddenInputs);
 	hiddenOutputs := apply(sigmoid, hiddenInputs);
-	fmt.Println("hiddenOutputs: ", hiddenOutputs);
-	finalInputs := dot(net.outputWeights, hiddenOutputs);
-	finalInputs = apply(negate, finalInputs);
-	fmt.Println("finalInputs: ", finalInputs);
+	//fmt.Println("hiddenOutputs: ", hiddenOutputs);
+	finalInputs := scale(1, dot(net.outputWeights, hiddenOutputs));
+	//fmt.Println("finalInputs: ", finalInputs);
 	finalOutputs := apply(sigmoid, finalInputs);
+	//fmt.Println("finalOutputs: ", finalOutputs);
 	return finalOutputs;
 }
 
@@ -109,14 +122,15 @@ func relu2(r, c int, z float64) float64{
         return 0;
     }
 }
+
 func sigmoidPrime(m mat.Matrix) mat.Matrix{
     x := apply(relu2, m);
     return x;
 }
 
 //THIS IS THE ACTUAL SIGMOID BELOW
-/*
 
+/*
 func sigmoid(r, c int, z float64) float64 {
 	return 1.0 / (1 + math.Exp(-1*z))
 }
@@ -130,11 +144,32 @@ func sigmoidPrime(m mat.Matrix) mat.Matrix {
     //make an r x 1 matrix of 1's for the purpose of subtracting
 	ones := mat.NewDense(rows, 1, o)
 	return multiply(m, subtract(ones, m)) // m * (1 - m)
-}
-*/
+}*/
+
 //
 // Helper functions to allow easier use of Gonum
 //
+
+func batchNorm(m mat.Matrix) mat.Matrix{
+	bias := 0.01;
+	avg, stDev := getStats(m);
+	n := addScalar(-1*avg, m);
+	n = scale(1/(math.Sqrt(stDev*stDev + bias)), n);
+	return n;
+}
+
+func getStats(m mat.Matrix) (avg, stDev float64){
+	r, c := m.Dims();
+	avg = mat.Sum(m)/float64(r*c);
+	data := make([]float64, r*c);
+	for i:= range data{
+		data[i] = avg;
+	}
+	n := mat.NewDense(r, c, data);
+	//n = subtract(m, n);
+	stDev = mat.Sum(subtract(m, n))/float64(r*c);
+	return avg, stDev;
+}
 
 func dot(m, n mat.Matrix) mat.Matrix {
 	r, _ := m.Dims();
@@ -144,9 +179,9 @@ func dot(m, n mat.Matrix) mat.Matrix {
 	return o;
 }
 
-func negate (r, c int, v float64) float64{
+/*func negate (r, c int, v float64) float64{
 	return -1*v
-}
+}*/
 
 func apply(fn func(i, j int, v float64) float64, m mat.Matrix) mat.Matrix {
 	r, c := m.Dims();

@@ -21,7 +21,7 @@ func main() {
 	// 100 hidden nodes - an arbitrary number
 	// 10 outputs - digits 0 to 9
 	// 0.1 is the learning rate
-	net := CreateNetwork(784, 100, 10, 0.1);
+	net := CreateNetwork(784, 50, 10, 0.0005);
 
 	mnist := flag.String("mnist", "", "Either train or predict to evaluate neural network");
 	file := flag.String("file", "", "File name of 28 x 28 PNG file to evaluate");
@@ -55,8 +55,8 @@ func mnistTrain(net *Network) {
 	rand.Seed(time.Now().UTC().UnixNano());
 	t1 := time.Now();
 	//fmt.Println("\n\nHidden Weights: ", net.hiddenWeights.At(0,500), "\n\n");
-	for epochs := 0; epochs < 1; epochs++ {
-		testFile, _ := os.Open("mnist_dataset/mnist_train_100.csv");
+	for epochs := 0; epochs < 5; epochs++ {
+		testFile, _ := os.Open("mnist_dataset/mnist_train.csv");
 		r := csv.NewReader(bufio.NewReader(testFile));
 		for {
 			record, err := r.Read();
@@ -67,15 +67,17 @@ func mnistTrain(net *Network) {
 			inputs := make([]float64, net.inputs);
 			for i := range inputs {
 				x, _ := strconv.ParseFloat(record[i], 64);
-				inputs[i] = (x / 255.0 * 0.999) + 0.001;
+				inputs[i] = (x / 255.0 * 9.99) + 0.01;
+				//inputs[i] = x + 1
 			}
+			//fmt.Println("inputs: ", inputs);
 
 			targets := make([]float64, 10);
 			for i := range targets {
-				targets[i] = 0.001;
+				targets[i] = 0.01;
 			}
 			x, _ := strconv.Atoi(record[0]);
-			targets[x] = 0.999;
+			targets[x] = 9.99;
 			//fmt.Println("Hidden Weights: ", net.hiddenWeights.At(0,500), "\n");
 			net.Train(inputs, targets);
 			//fmt.Println("Hidden Weights: ", net.hiddenWeights.At(0,500), "\n");
@@ -85,11 +87,13 @@ func mnistTrain(net *Network) {
 	}
 	elapsed := time.Since(t1);
 	fmt.Printf("\nTime taken to train: %s\n", elapsed);
+	//fmt.Println("Weights: ", net.hiddenWeights)
+	//fmt.Println("\noutputWeights: ", net.outputWeights)
 }
 
 func mnistPredict(net *Network) {
 	t1 := time.Now();
-	checkFile, _ := os.Open("mnist_dataset/mnist_test_10.csv");
+	checkFile, _ := os.Open("mnist_dataset/mnist_test.csv");
 	//checkFile, _ := os.Open("mnist_dataset/mnist_test.csv");
 	defer checkFile.Close();
 
@@ -103,11 +107,12 @@ func mnistPredict(net *Network) {
 		inputs := make([]float64, net.inputs);
 		for i := range inputs {
 			if i == 0 {
-				inputs[i] = 1.0;
+				inputs[i] = 0.01;
 			}
 			x, _ := strconv.ParseFloat(record[i], 64);
-			inputs[i] = (x / 255.0 * 0.999) + 0.001;
+			inputs[i] = (x / 255.0 * 9.99) + 0.01;
 		}
+		//fmt.Println("inputs: ", inputs);
 		outputs := net.Predict(inputs);
 		//fmt.Println("outputs: ", outputs)
 		best := 0;
@@ -119,7 +124,7 @@ func mnistPredict(net *Network) {
 			}
 		}
 		target, _ := strconv.Atoi(record[0]);
-		fmt.Println("Predicted: ", best, "... Target: ", target);
+		//fmt.Println("Predicted: ", best, "... Target: ", target);
 		if best == target {
 			//fmt.Println("Predicted: ", best);
 			score++;
@@ -149,6 +154,6 @@ func getImage(filePath string) image.Image {
 	img, _, err := image.Decode(imgFile);
 	if err != nil {
 		fmt.Println("Cannot decode file:", err);
-	}
+	}	
 	return img;
 }
