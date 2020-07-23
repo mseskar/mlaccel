@@ -31,7 +31,7 @@ func CreateNetwork(input, hidden, output int, rate float64) (net Network) {
 		outputs:      output,
 		learningRate: rate,
 	};
-	net.hiddenWeights = mat.NewDense(net.hiddens, net.inputs+1, randomArray((net.inputs+1)*(net.hiddens), float64(net.inputs+1)));
+	net.hiddenWeights = mat.NewDense(net.hiddens, net.inputs, randomArray((net.inputs)*(net.hiddens), float64(net.inputs)));
 	//fmt.Println("Initial Hidden Weights: ", net.hiddenWeights);
 	//fmt.Println("\n\n");
 	net.outputWeights = mat.NewDense(net.outputs, net.hiddens, randomArray((net.hiddens)*(net.outputs), float64(net.hiddens)));
@@ -43,67 +43,58 @@ func CreateNetwork(input, hidden, output int, rate float64) (net Network) {
 // Train the neural network
 func (net *Network) Train(inputData []float64, targetData []float64) {
 	// feedforward
-	inputs := mat.NewDense(len(inputData), 1, inputData);
-	//fmt.Println("\nHidden Weights: ", net.hiddenWeights, "\n");
-	//mt.Println("inputs ", inputs);
-	biasedInputs := addBiasNodeTo(inputs, 1);
-	//matrixPrint(biasedInputs)
-	//fmt.Println(biasedInputs);
-	hiddenInputs := scale(0.1, dot(net.hiddenWeights, biasedInputs));
-	//matrixPrint(hiddenInputs);
-	//fmt.Println("this worked");
-	//fmt.Println("hiddenInputs: ", hiddenInputs);
-	hiddenOutputs := apply(sigmoid, hiddenInputs);
-	//fmt.Println("hiddenOutputs: ", hiddenOutputs);
-	//biasedFinal := addBiasNodeTo(hiddenOutputs, 1);
-	//fmt.Println("biasedFinal: ", biasedFinal)
-	finalInputs := scale(1, dot(net.outputWeights, hiddenOutputs));
-	//fmt.Println("finalInputs: ", finalInputs);
+	var inputs *mat.Dense;
+	var hiddenInputs mat.Matrix;
+	var hiddenOutputs mat.Matrix;
+	var finalInputs mat.Matrix;
+	var finalOutputs mat.Matrix;
+	var outputErrors mat.Matrix;
+	var hiddenErrors mat.Matrix;
 
-	finalOutputs := apply(sigmoid, finalInputs);
-	//fmt.Println("finalOutputs: ", finalOutputs);
+	inputs = mat.NewDense(len(inputData), 1, inputData);
+
+	hiddenInputs = scale(0.1, dot(net.hiddenWeights, inputs));
+	hiddenOutputs = apply(sigmoid, hiddenInputs);
+
+	finalInputs = scale(1, dot(net.outputWeights, hiddenOutputs));
+	finalOutputs = apply(sigmoid, finalInputs);
+
 	// find errors
-	targets := mat.NewDense(len(targetData), 1, targetData);
-	//fmt.Println("Targets: ", targets);
-	outputErrors := subtract(targets, finalOutputs);
-	//outputErrors := subtract(finalOutputs, targets);
-	//fmt.Println("outputErrors: ", outputErrors);
-	hiddenErrors := dot(net.outputWeights.T(), outputErrors);
+	//targets := mat.NewDense(len(targetData), 1, targetData);
+	outputErrors = subtract(mat.NewDense(len(targetData), 1, targetData), finalOutputs);
+	hiddenErrors = dot(net.outputWeights.T(), outputErrors);
 
 	// backpropagate
-	finalSigmoid := sigmoidPrime(finalOutputs);
-	//fmt.Println("finalSigmoid: ", net.outputWeights);
-	//matrixPrint(net.outputWeights);
-	//fmt.Println("mult: ", dot(multiply(outputErrors, finalSigmoid), hiddenOutputs.T()).(*mat.Dense));
-	//fmt.Println("mult: ", addBiasNodeTo(hiddenOutputs,1).T());
 	net.outputWeights = add(net.outputWeights,
 		scale(net.learningRate,
-			dot(multiply(outputErrors, finalSigmoid),
+			dot(multiply(outputErrors, sigmoidPrime(finalOutputs)),
 				hiddenOutputs.T()))).(*mat.Dense);
 
-	hiddenSigmoid := sigmoidPrime(hiddenOutputs);
-
-	//fmt.Println("hiddenErrors: ", dot(multiply(hiddenErrors, hiddenSigmoid),inputs.T()));
-	//fmt.Println(net.hiddenWeights);
 	net.hiddenWeights = add(net.hiddenWeights,
 		scale(net.learningRate,
-			dot(multiply(hiddenErrors, hiddenSigmoid),
-				biasedInputs.T()))).(*mat.Dense);
+			dot(multiply(hiddenErrors, sigmoidPrime(hiddenOutputs)),
+				inputs.T()))).(*mat.Dense);
 }
 
 // Predict uses the neural network to predict the value given input data
 func (net Network) Predict(inputData []float64) mat.Matrix {
 	// feedforward
-	inputs := mat.NewDense(len(inputData), 1, inputData);
-	biasedInputs := addBiasNodeTo(inputs, 1);
+	var inputs *mat.Dense;
+	var hiddenInputs mat.Matrix;
+	var hiddenOutputs mat.Matrix;
+	var finalInputs mat.Matrix;
+	var finalOutputs mat.Matrix;
+
+	inputs = mat.NewDense(len(inputData), 1, inputData);
+	//biasedInputs := addBiasNodeTo(inputs, 1);
 	//fmt.Println("Inputs: ", inputs);
-	hiddenInputs := scale(0.1, dot(net.hiddenWeights, biasedInputs));
+	hiddenInputs = scale(0.1, dot(net.hiddenWeights, inputs));
 	//fmt.Println("hiddenInputs: ", hiddenInputs);
-	hiddenOutputs := apply(sigmoid, hiddenInputs);
+	hiddenOutputs = apply(sigmoid, hiddenInputs);
 	//fmt.Println("hiddenOutputs: ", hiddenOutputs);
-	finalInputs := scale(1, dot(net.outputWeights, hiddenOutputs));
+	finalInputs = scale(1, dot(net.outputWeights, hiddenOutputs));
 	//fmt.Println("finalInputs: ", finalInputs);
-	finalOutputs := apply(sigmoid, finalInputs);
+	finalOutputs = apply(sigmoid, finalInputs);
 	//fmt.Println("finalOutputs: ", finalOutputs);
 	return finalOutputs;
 }
@@ -124,8 +115,8 @@ func relu2(r, c int, z float64) float64{
 }
 
 func sigmoidPrime(m mat.Matrix) mat.Matrix{
-    x := apply(relu2, m);
-    return x;
+    //x := apply(relu2, m);
+    return apply(relu2, m);
 }
 
 //THIS IS THE ACTUAL SIGMOID BELOW
